@@ -433,10 +433,7 @@
                     setUserLocation(e.latlng.lat, e.latlng.lng, map.getZoom());
                 }
 
-                function findRandomPoint() {
-                    if (!userLocation) return;
-                    if (randomMarker) map.removeLayer(randomMarker);
-
+                function generateRandomCoords() {
                     const radiusMeters = radiusSlider.value * 1000;
                     const r_earth = 6378137;
                     const y0 = userLocation.lat;
@@ -452,8 +449,67 @@
 
                     const new_x = x / Math.cos((y0 * Math.PI) / 180);
 
-                    const foundLat = y0 + (y * 180) / Math.PI;
-                    const foundLng = x0 + (new_x * 180) / Math.PI;
+                    return {
+                        lat: y0 + (y * 180) / Math.PI,
+                        lng: x0 + (new_x * 180) / Math.PI,
+                    };
+                }
+
+                async function isPointOnLand(lat, lng) {
+                    try {
+                        const response = await fetch(
+                            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=fr`,
+                        );
+                        const data = await response.json();
+                        return !!(data.countryCode && data.countryCode !== "");
+                    } catch (e) {
+                        // En cas d'erreur réseau, on accepte le point pour ne pas bloquer l'utilisateur
+                        return true;
+                    }
+                }
+
+                function setFindBtnLoadingState(
+                    isLoading,
+                    attempt,
+                    maxAttempts,
+                ) {
+                    if (isLoading) {
+                        findPointBtn.disabled = true;
+                        const label =
+                            attempt > 1
+                                ? `Recherche sur terre... (${attempt}/${maxAttempts})`
+                                : "Recherche en cours...";
+                        findPointBtn.innerHTML = `<i data-feather="loader" class="w-6 h-6 animate-spin-slow"></i> <span class="text-xl">${label}</span>`;
+                    } else {
+                        findPointBtn.disabled = false;
+                        findPointBtn.innerHTML = `<i data-feather="send" class="w-6 h-6"></i> <span class="text-xl">Trouver une destination !</span>`;
+                    }
+                    feather.replace();
+                }
+
+                async function findRandomPoint() {
+                    if (!userLocation) return;
+                    if (randomMarker) map.removeLayer(randomMarker);
+
+                    const MAX_ATTEMPTS = 10;
+                    let foundLat, foundLng;
+                    let onLand = false;
+                    let attempt = 0;
+
+                    setFindBtnLoadingState(true, 1, MAX_ATTEMPTS);
+
+                    while (!onLand && attempt < MAX_ATTEMPTS) {
+                        attempt++;
+                        if (attempt > 1) {
+                            setFindBtnLoadingState(true, attempt, MAX_ATTEMPTS);
+                        }
+                        const coords = generateRandomCoords();
+                        foundLat = coords.lat;
+                        foundLng = coords.lng;
+                        onLand = await isPointOnLand(foundLat, foundLng);
+                    }
+
+                    setFindBtnLoadingState(false);
 
                     const latDisplay = foundLat.toFixed(5);
                     const lngDisplay = foundLng.toFixed(5);
