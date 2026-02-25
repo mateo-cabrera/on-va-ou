@@ -442,7 +442,12 @@
                     const u = Math.random();
                     const v = Math.random();
 
-                    const w = (radiusMeters / r_earth) * Math.sqrt(u);
+                    const minRadiusMeters = Math.max(200, radiusMeters * 0.2);
+                    const w_min = minRadiusMeters / r_earth;
+                    const w_max = radiusMeters / r_earth;
+                    const w = Math.sqrt(
+                        w_min * w_min + u * (w_max * w_max - w_min * w_min),
+                    );
                     const t = 2 * Math.PI * v;
                     const x = w * Math.cos(t);
                     const y = w * Math.sin(t);
